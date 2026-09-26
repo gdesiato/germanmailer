@@ -16,7 +16,7 @@ public class GermanTextGenerator {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    @Value("${gemini.model:gemini-2.0-flash}")
+    @Value("${gemini.model:gemini-3.8-flash}")
     private String model;
 
     private final RestClient restClient = RestClient.create();
