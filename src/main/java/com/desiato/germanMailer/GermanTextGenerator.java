@@ -1,7 +1,7 @@
 package com.desiato.germanMailer;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -32,16 +32,25 @@ public class GermanTextGenerator {
         String topic = TOPICS.get((int) (Math.random() * TOPICS.size()));
 
         String prompt = """
-                Schreibe einen kurzen Text auf Deutsch fuer Deutschlerner auf Niveau A1/A2 zum Thema "%s".
+        Schreibe einen kurzen Text auf Deutsch für Deutschlerner
+        auf Niveau A1/A2 zum Thema "%s".
 
-                Regeln:
-                - Nur einfache Woerter und kurze Saetze.
-                - 5 bis 8 Saetze lang.
-                - Danach eine englische Uebersetzung.
-                - Danach 5 wichtige Vokabeln mit englischer Uebersetzung.
+        Regeln:
+        - Verwende einfache Wörter und kurze Sätze.
+        - Schreibe 5 bis 8 Sätze.
+        - Verwende Grammatik auf Niveau A1/A2.
+        - Schreibe danach eine englische Übersetzung des gesamten Textes.
+        - Gib danach 5 wichtige Vokabeln aus dem Text mit englischer Übersetzung.
+        - Vermeide seltene oder fortgeschrittene Wörter.
 
-                Formatiere mit den Ueberschriften: Text, Translation, Vocabulary.
-                """.formatted(topic);
+        Formatiere die Antwort mit diesen Überschriften:
+
+        Text
+
+        Translation
+
+        Vocabulary
+        """.formatted(topic);
 
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(
