@@ -11,13 +11,16 @@ public class GermanMailerApp implements CommandLineRunner {
     private final GermanTextGenerator generator;
     private final GermanEmailSender sender;
 
-    public GermanMailerApp(GermanTextGenerator generator, GermanEmailSender sender) {
+    public GermanMailerApp(GermanTextGenerator generator,
+                           GermanEmailSender sender) {
         this.generator = generator;
         this.sender = sender;
     }
 
     public static void main(String[] args) {
-        ConfigurableApplicationContext context = SpringApplication.run(GermanMailerApp.class, args);
+        ConfigurableApplicationContext context =
+                SpringApplication.run(GermanMailerApp.class, args);
+
         int exitCode = SpringApplication.exit(context, () -> 0);
         System.exit(exitCode);
     }
@@ -25,6 +28,7 @@ public class GermanMailerApp implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         System.out.println("Generating today's German lesson...");
+
         String lesson = generator.generate();
 
         System.out.println("Sending email...");
