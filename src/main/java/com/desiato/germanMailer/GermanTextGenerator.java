@@ -23,33 +23,63 @@ public class GermanTextGenerator {
     private final ObjectMapper mapper = new ObjectMapper();
 
     private static final List<String> TOPICS = List.of(
-            "das Wetter", "Essen und Trinken", "eine Reise", "Hobbys",
-            "die Familie", "der Alltag", "Einkaufen im Supermarkt",
-            "die Jahreszeiten", "ein Restaurantbesuch", "der Sport"
+            "was du heute gemacht hast",
+            "deine Pläne für das Wochenende",
+            "etwas Lustiges, das heute passiert ist",
+            "was du gern isst",
+            "ein Ort, den du gern besuchst",
+            "deine Arbeit und dein Alltag",
+            "deine Hobbys",
+            "was du gestern Abend gemacht hast",
+            "eine kleine Reise, die du machen möchtest",
+            "Sport und Freizeit",
+            "das Wetter und deine Pläne für heute",
+            "was du am Wochenende gemacht hast",
+            "ein Restaurant oder Café, das du magst",
+            "etwas Neues, das du gelernt hast",
+            "deine Pläne für den nächsten Urlaub"
     );
 
     public String generate() {
         String topic = TOPICS.get((int) (Math.random() * TOPICS.size()));
 
         String prompt = """
-        Schreibe einen kurzen Text auf Deutsch für Deutschlerner
-        auf Niveau A1/A2 zum Thema "%s".
+        Du bist mein deutscher Brieffreund.
+
+        Schreibe mir eine kurze, freundliche E-Mail auf Deutsch auf Niveau A1/A2.
+        Schreibe so, als wärst du eine echte Person, die mir regelmäßig schreibt.
+
+        Heute möchtest du über das Thema "%s" sprechen.
 
         Regeln:
-        - Verwende einfache Wörter und kurze Sätze.
-        - Schreibe 5 bis 8 Sätze.
-        - Verwende Grammatik auf Niveau A1/A2.
-        - Schreibe danach eine englische Übersetzung des gesamten Textes.
-        - Gib danach 5 wichtige Vokabeln aus dem Text mit englischer Übersetzung.
-        - Vermeide seltene oder fortgeschrittene Wörter.
+        - Beginne mit "Hallo Giuseppe,".
+        - Erzähle mir etwas über deinen Tag, dein Leben, deine Pläne,
+          deine Meinung oder eine kleine Erfahrung.
+        - Schreibe natürlich und persönlich, nicht wie ein Lehrbuch.
+        - Verwende einfache Wörter und kurze Sätze auf Niveau A1/A2.
+        - Schreibe ungefähr 8 bis 12 Sätze.
+        - Stelle mir am Ende 2 oder 3 einfache Fragen zum Thema,
+          damit ich dir antworten kann.
+        - Verwende gelegentlich typische deutsche Ausdrücke,
+          aber keine schwierige Grammatik.
+        - Beende die E-Mail mit einem freundlichen Gruß.
+        - Gib danach eine englische Übersetzung.
+        - Gib danach 5 wichtige deutsche Wörter oder Ausdrücke
+          aus der E-Mail mit englischer Übersetzung.
 
-        Formatiere die Antwort mit diesen Überschriften:
+        Verwende diese Struktur:
 
-        Text
+        Brief
+
+        [E-Mail auf Deutsch]
 
         Translation
 
+        [Englische Übersetzung]
+
         Vocabulary
+
+        [5 Wörter oder Ausdrücke mit englischer Übersetzung]
         """.formatted(topic);
 
         Map<String, Object> requestBody = Map.of(
