@@ -1,5 +1,7 @@
 package com.desiato.germanMailer;
 
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +23,9 @@ public class GermanTextGenerator {
 
     private final RestClient restClient = RestClient.create();
     private final ObjectMapper mapper = new ObjectMapper();
+
+    private static final int MAX_ATTEMPTS = 3;
+    private static final long RETRY_DELAY_MS = 30_000;
 
     private static final List<String> TOPICS = List.of(
             "was du heute gemacht hast",
@@ -44,61 +49,95 @@ public class GermanTextGenerator {
         String topic = TOPICS.get((int) (Math.random() * TOPICS.size()));
 
         String prompt = """
-        Du bist mein deutscher Brieffreund.
-
-        Schreibe mir eine kurze, freundliche E-Mail auf Deutsch auf Niveau A1/A2.
-        Schreibe so, als wärst du eine echte Person, die mir regelmäßig schreibt.
-
-        Heute möchtest du über das Thema "%s" sprechen.
-
-        Regeln:
-        - Beginne mit "Hallo Giuseppe,".
-        - Erzähle mir etwas über deinen Tag, dein Leben, deine Pläne,
-          deine Meinung oder eine kleine Erfahrung.
-        - Schreibe natürlich und persönlich, nicht wie ein Lehrbuch.
-        - Verwende einfache Wörter und kurze Sätze auf Niveau A1/A2.
-        - Schreibe ungefähr 8 bis 12 Sätze.
-        - Stelle mir am Ende 2 oder 3 einfache Fragen zum Thema,
-          damit ich dir antworten kann.
-        - Verwende gelegentlich typische deutsche Ausdrücke,
-          aber keine schwierige Grammatik.
-        - Beende die E-Mail mit einem freundlichen Gruß.
-        - Gib danach eine englische Übersetzung.
-        - Gib danach 5 wichtige deutsche Wörter oder Ausdrücke
-          aus der E-Mail mit englischer Übersetzung.
-
-        Verwende diese Struktur:
-
-        Brief
-
-        [E-Mail auf Deutsch]
-
-        Translation
-
-        [Englische Übersetzung]
-
-        Vocabulary
-
-        [5 Wörter oder Ausdrücke mit englischer Übersetzung]
-        """.formatted(topic);
+                Du bist mein deutscher Brieffreund.
+                
+                Schreibe mir eine kurze, freundliche E-Mail auf Deutsch auf Niveau A1/A2.
+                Schreibe so, als wärst du eine echte Person, die mir regelmäßig schreibt.
+                
+                Heute möchtest du über das Thema "%s" sprechen.
+                
+                Regeln:
+                - Beginne mit "Hallo Giuseppe,".
+                - Erzähle mir etwas über deinen Tag, dein Leben, deine Pläne,
+                  deine Meinung oder eine kleine Erfahrung.
+                - Schreibe natürlich und persönlich, nicht wie ein Lehrbuch.
+                - Verwende einfache Wörter und kurze Sätze auf Niveau A1/A2.
+                - Schreibe ungefähr 8 bis 12 Sätze.
+                - Stelle mir am Ende 2 oder 3 einfache Fragen zum Thema,
+                  damit ich dir antworten kann.
+                - Verwende gelegentlich typische deutsche Ausdrücke,
+                  aber keine schwierige Grammatik.
+                - Beende die E-Mail mit einem freundlichen Gruß.
+                - Gib danach eine englische Übersetzung.
+                - Gib danach 5 wichtige deutsche Wörter oder Ausdrücke
+                  aus der E-Mail mit englischer Übersetzung.
+                
+                Verwende diese Struktur:
+                
+                Brief
+                
+                [E-Mail auf Deutsch]
+                
+                Translation
+                
+                [Englische Übersetzung]
+                
+                Vocabulary
+                
+                [5 Wörter oder Ausdrücke mit englischer Übersetzung]
+                """.formatted(topic);
 
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(
-                        Map.of("parts", List.of(Map.of("text", prompt)))
+                        Map.of(
+                                "parts",
+                                List.of(Map.of("text", prompt))
+                        )
                 )
         );
 
         String url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
                 .formatted(model, apiKey);
 
-        String response = restClient.post()
-                .uri(url)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(requestBody)
-                .retrieve()
-                .body(String.class);
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            try {
+                String response = restClient.post()
+                        .uri(url)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(String.class);
 
-        return extractText(response);
+                return extractText(response);
+
+            } catch (HttpServerErrorException.ServiceUnavailable
+                     | HttpClientErrorException.TooManyRequests e) {
+
+                if (attempt == MAX_ATTEMPTS)
+                    throw e;
+
+                System.out.printf(
+                        "Gemini temporarily unavailable (%s). Attempt %d/%d. Retrying in %d seconds...%n",
+                        e.getStatusCode(),
+                        attempt,
+                        MAX_ATTEMPTS,
+                        RETRY_DELAY_MS / 1000
+                );
+
+                try {
+                    Thread.sleep(RETRY_DELAY_MS);
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+
+                    throw new IllegalStateException(
+                            "Interrupted while waiting to retry Gemini",
+                            interruptedException
+                    );
+                }
+            }
+        }
+
+        throw new IllegalStateException("Gemini request failed after retries");
     }
 
     private String extractText(String rawJson) {
