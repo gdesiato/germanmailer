@@ -18,14 +18,14 @@ public class GermanTextGenerator {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    @Value("${gemini.model:gemini-3.8-flash}")
-    private String model;
+    @Value("${gemini.models:gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite}")
+    private List<String> models;
 
     private final RestClient restClient = RestClient.create();
     private final ObjectMapper mapper = new ObjectMapper();
 
-    private static final int MAX_ATTEMPTS = 3;
-    private static final long RETRY_DELAY_MS = 30_000;
+    private static final int MAX_ATTEMPTS_PER_MODEL = 3;
+    private static final long RETRY_DELAY_MS = 15_000;
 
     private static final List<String> TOPICS = List.of(
             "was du heute gemacht hast",
@@ -50,12 +50,12 @@ public class GermanTextGenerator {
 
         String prompt = """
                 Du bist mein deutscher Brieffreund.
-                
+
                 Schreibe mir eine kurze, freundliche E-Mail auf Deutsch auf Niveau A1/A2.
                 Schreibe so, als wärst du eine echte Person, die mir regelmäßig schreibt.
-                
+
                 Heute möchtest du über das Thema "%s" sprechen.
-                
+
                 Regeln:
                 - Beginne mit "Hallo Giuseppe,".
                 - Erzähle mir etwas über deinen Tag, dein Leben, deine Pläne,
@@ -71,73 +71,82 @@ public class GermanTextGenerator {
                 - Gib danach eine englische Übersetzung.
                 - Gib danach 5 wichtige deutsche Wörter oder Ausdrücke
                   aus der E-Mail mit englischer Übersetzung.
-                
+
                 Verwende diese Struktur:
-                
+
                 Brief
-                
+
                 [E-Mail auf Deutsch]
-                
+
                 Translation
-                
+
                 [Englische Übersetzung]
-                
+
                 Vocabulary
-                
+
                 [5 Wörter oder Ausdrücke mit englischer Übersetzung]
                 """.formatted(topic);
 
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(
-                        Map.of(
-                                "parts",
-                                List.of(Map.of("text", prompt))
-                        )
+                        Map.of("parts", List.of(Map.of("text", prompt)))
                 )
         );
 
+        RuntimeException lastError = null;
+
+        for (String model : models) {
+            for (int attempt = 1; attempt <= MAX_ATTEMPTS_PER_MODEL; attempt++) {
+                try {
+                    return callGemini(model, requestBody);
+
+                } catch (HttpClientErrorException.NotFound e) {
+                    // wrong or unavailable model name: retrying won't help, try the next model
+                    lastError = e;
+                    System.out.printf("Model %s not found. Skipping.%n", model);
+                    break;
+
+                } catch (HttpServerErrorException | HttpClientErrorException.TooManyRequests e) {
+                    // 5xx (e.g. 503 overloaded) or 429 rate limit: retry, then fall back
+                    lastError = e;
+                    System.out.printf(
+                            "Gemini model %s unavailable (%s). Attempt %d/%d.%n",
+                            model, e, attempt, MAX_ATTEMPTS_PER_MODEL
+                    );
+
+                    if (attempt < MAX_ATTEMPTS_PER_MODEL) {
+                        sleep(RETRY_DELAY_MS * attempt);   // 15s, 30s
+                    }
+                }
+            }
+            System.out.printf("Giving up on model %s, trying next model if any.%n", model);
+        }
+
+        throw new IllegalStateException("All Gemini models failed: " + models, lastError);
+    }
+
+    private String callGemini(String model, Map<String, Object> requestBody) {
         String url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
                 .formatted(model, apiKey);
 
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            try {
-                String response = restClient.post()
-                        .uri(url)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(requestBody)
-                        .retrieve()
-                        .body(String.class);
+        String response = restClient.post()
+                .uri(url)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(requestBody)
+                .retrieve()
+                .body(String.class);
 
-                return extractText(response);
+        System.out.printf("Generated lesson with model %s%n", model);
+        return extractText(response);
+    }
 
-            } catch (HttpServerErrorException.ServiceUnavailable
-                     | HttpClientErrorException.TooManyRequests e) {
-
-                if (attempt == MAX_ATTEMPTS)
-                    throw e;
-
-                System.out.printf(
-                        "Gemini temporarily unavailable (%s). Attempt %d/%d. Retrying in %d seconds...%n",
-                        e.getStatusCode(),
-                        attempt,
-                        MAX_ATTEMPTS,
-                        RETRY_DELAY_MS / 1000
-                );
-
-                try {
-                    Thread.sleep(RETRY_DELAY_MS);
-                } catch (InterruptedException interruptedException) {
-                    Thread.currentThread().interrupt();
-
-                    throw new IllegalStateException(
-                            "Interrupted while waiting to retry Gemini",
-                            interruptedException
-                    );
-                }
-            }
+    private void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting to retry Gemini", e);
         }
-
-        throw new IllegalStateException("Gemini request failed after retries");
     }
 
     private String extractText(String rawJson) {

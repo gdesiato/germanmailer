@@ -3,9 +3,6 @@ name: Daily German Email
 on:
   workflow_dispatch:
 
-  schedule:
-    - cron: '30 11 * * *'
-
 jobs:
   send-email:
     runs-on: ubuntu-latest
