@@ -57,6 +57,16 @@ public class GermanTextGenerator {
                 Heute möchtest du über das Thema "%s" sprechen.
 
                 Regeln:
+                - Formatiere die E-Mail als Klartext mit echten Zeilenumbrüchen.
+                - Beginne nach ungefähr 60 bis 70 Zeichen eine neue Zeile,
+                  ohne Wörter zu trennen.
+                - Teile den Text in kurze Absätze mit jeweils 2 bis 3 Sätzen.
+                - Trenne die Absätze durch eine Leerzeile.
+                - Schreibe die Anrede und den abschließenden Gruß jeweils
+                  in eine eigene Zeile.
+                - Verwende dieselbe Formatierung für die englische Übersetzung.
+                - Schreibe jeden Vokabeleintrag in eine eigene Zeile.
+            
                 - Beginne mit "Hallo Giuseppe,".
                 - Erzähle mir etwas über deinen Tag, dein Leben, deine Pläne,
                   deine Meinung oder eine kleine Erfahrung.
