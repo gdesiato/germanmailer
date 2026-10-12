@@ -8,6 +8,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import java.net.http.HttpClient;
+import java.time.Duration;
+
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +26,22 @@ public class GermanTextGenerator {
     @Value("${gemini.models:gemini-3.8-flash,gemini-3.6-flash,gemini-3.5-flash-lite}")
     private List<String> models;
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient = createRestClient();
+
+    private static RestClient createRestClient() {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+    
+        JdkClientHttpRequestFactory requestFactory =
+                new JdkClientHttpRequestFactory(httpClient);
+    
+        requestFactory.setReadTimeout(Duration.ofSeconds(90));
+    
+        return RestClient.builder()
+                .requestFactory(requestFactory)
+                .build();
+    }
     private final ObjectMapper mapper = new ObjectMapper();
 
     private static final int MAX_ATTEMPTS_PER_MODEL = 3;
@@ -115,17 +135,21 @@ public class GermanTextGenerator {
                     lastError = e;
                     System.out.printf("Model %s not found. Skipping.%n", model);
                     break;
-
-                } catch (HttpServerErrorException | HttpClientErrorException.TooManyRequests e) {
-                    // 5xx (e.g. 503 overloaded) or 429 rate limit: retry, then fall back
+                
+                } catch (HttpServerErrorException
+                         | HttpClientErrorException.TooManyRequests
+                         | ResourceAccessException e) {
+                
                     lastError = e;
-                    System.out.printf(
-                            "Gemini model %s unavailable (%s). Attempt %d/%d.%n",
-                            model, e, attempt, MAX_ATTEMPTS_PER_MODEL
+                
+                    System.err.printf(
+                            "Gemini model %s failed (%s). Attempt %d/%d.%n",
+                            model, e.getClass().getSimpleName(),
+                            attempt, MAX_ATTEMPTS_PER_MODEL
                     );
-
+                
                     if (attempt < MAX_ATTEMPTS_PER_MODEL) {
-                        sleep(RETRY_DELAY_MS * attempt);   // 15s, 30s
+                        sleep(RETRY_DELAY_MS * attempt); // 15s, 30s
                     }
                 }
             }
@@ -136,18 +160,21 @@ public class GermanTextGenerator {
     }
 
     private String callGemini(String model, Map<String, Object> requestBody) {
-        String url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
-                .formatted(model, apiKey);
-
+        String url =
+                "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent"
+                        .formatted(model);
+    
         String response = restClient.post()
                 .uri(url)
+                .header("x-goog-api-key", apiKey)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(requestBody)
                 .retrieve()
                 .body(String.class);
-
+    
+        String text = extractText(response);
         System.out.printf("Generated lesson with model %s%n", model);
-        return extractText(response);
+        return text;
     }
 
     private void sleep(long ms) {
